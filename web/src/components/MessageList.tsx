@@ -18,12 +18,24 @@ function formatTime(ts?: number) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function nonceNum(nonce: number[]): number {
+  // Collapse nonce to a single comparable number for stable sort tiebreaking.
+  return nonce.reduce((acc, b) => acc * 256 + b, 0) % 2 ** 32;
+}
+
 function buildStream(msgs: ChatMessage[], peerEvts: NetworkEvent[]): StreamItem[] {
   const items: StreamItem[] = [
     ...msgs.map(msg => ({ kind: 'message' as const, msg, _ts: msg.ts })),
     ...peerEvts.map(ev => ({ kind: 'pill' as const, ev, _ts: ev.ts ?? 0 })),
   ];
-  items.sort((a, b) => a._ts - b._ts);
+  // Stable sort: primary ts, secondary nonce (messages) or 0 (pills).
+  items.sort((a, b) => {
+    const dt = a._ts - b._ts;
+    if (dt !== 0) return dt;
+    const aNonce = a.kind === 'message' ? nonceNum(a.msg.nonce) : 0;
+    const bNonce = b.kind === 'message' ? nonceNum(b.msg.nonce) : 0;
+    return aNonce - bNonce;
+  });
   return items;
 }
 
@@ -95,11 +107,13 @@ export default function MessageList({ messages, historyCount, peerEvents, onPeer
     }
   }, [messages, peerEvents]);
 
-  const historyMsgs = messages.slice(0, historyCount);
-  const liveMsgs    = messages.slice(historyCount);
+  // Clamp historyCount in case it exceeds messages.length (e.g. stale state).
+  const clampedHistory = Math.min(historyCount, messages.length);
+  const historyMsgs    = messages.slice(0, clampedHistory);
+  const liveMsgs       = messages.slice(clampedHistory);
   const historyTs   = historyMsgs[historyMsgs.length - 1]?.ts ?? 0;
 
-  const historyPeerEvts = peerEvents.filter(e => historyCount > 0 && (e.ts ?? 0) <= historyTs);
+  const historyPeerEvts = peerEvents.filter(e => clampedHistory > 0 && (e.ts ?? 0) <= historyTs);
   const livePeerEvts    = peerEvents.filter(e => !historyPeerEvts.includes(e));
 
   const historyStream = buildStream(historyMsgs, historyPeerEvts);
@@ -121,7 +135,7 @@ export default function MessageList({ messages, historyCount, peerEvents, onPeer
             : <SystemPill key={`h-pill-${i}`} ev={item.ev} />
         )}
 
-        {historyCount > 0 && (
+        {clampedHistory > 0 && liveMsgs.length + livePeerEvts.length > 0 && (
           <div className="divider" role="separator">
             <div className="divider-line" />
             <span className="divider-chip">live</span>

@@ -73,7 +73,9 @@ function rowMeta(ev: NetworkEvent): RowMeta {
   }
 }
 
-export default function NetworkTrace({ events, open }: NetworkTraceProps) {
+export default function NetworkTrace({ events: allEvents, open }: NetworkTraceProps) {
+  // Cap to last 300 rows to keep the DOM bounded in long sessions.
+  const events = allEvents.slice(-300);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

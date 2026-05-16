@@ -1,0 +1,16 @@
+{
+  "name": "relay-sim",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Multi-peer simulation tests for relay-test using Playwright",
+  "scripts": {
+    "test":      "playwright test",
+    "test:ui":   "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "report":    "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.0.0"
+  }
+}

@@ -5,19 +5,25 @@ interface TicketBannerProps {
 }
 
 export default function TicketBanner({ ticket }: TicketBannerProps) {
-  const [visible, setVisible]   = useState(true);
-  const [copied,  setCopied]    = useState(false);
+  const [visible,    setVisible]    = useState(true);
+  const [copied,     setCopied]     = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   if (!visible) return null;
+  if (!ticket.trim()) return null;
 
   const truncated = ticket.length > 16
     ? `${ticket.slice(0, 8)}···${ticket.slice(-4)}`
     : ticket;
 
-  async function handleCopy() {
-    await navigator.clipboard.writeText(ticket);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
+  function handleCopy() {
+    navigator.clipboard.writeText(ticket).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }).catch(() => {
+      setCopyFailed(true);
+      setTimeout(() => setCopyFailed(false), 1800);
+    });
   }
 
   return (
@@ -31,7 +37,7 @@ export default function TicketBanner({ ticket }: TicketBannerProps) {
       </div>
       <div className="banner-right">
         <button className="copy-btn" onClick={handleCopy} aria-label="Copy ticket">
-          {copied ? 'Copied!' : 'Copy'}
+          {copyFailed ? 'Failed' : copied ? 'Copied!' : 'Copy'}
         </button>
         <button className="dismiss-btn" onClick={() => setVisible(false)} aria-label="Dismiss">×</button>
       </div>

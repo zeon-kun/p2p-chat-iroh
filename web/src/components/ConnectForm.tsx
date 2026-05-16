@@ -2,11 +2,20 @@ import { useState } from 'react';
 
 type Mode = 'open' | 'join';
 
-export default function ConnectForm() {
+interface ConnectFormProps {
+  /** Lifted port state from Landing (shared with RoomDirectory). */
+  port?:         string;
+  onPortChange?: (p: string) => void;
+}
+
+export default function ConnectForm({ port: portProp, onPortChange }: ConnectFormProps) {
   const [mode,   setMode]   = useState<Mode>('open');
-  const [port,   setPort]   = useState('');
+  const [portInt, setPortInt] = useState('');   // internal fallback when used standalone
   const [room,   setRoom]   = useState('');
   const [ticket, setTicket] = useState('');
+
+  const port    = portProp ?? portInt;
+  const setPort = (v: string) => { onPortChange?.(v); setPortInt(v); };
 
   const defaultPort = mode === 'open' ? '9001' : '9002';
 
@@ -14,9 +23,10 @@ export default function ConnectForm() {
     e.preventDefault();
     const resolvedPort = parseInt(port || defaultPort, 10);
     const params = new URLSearchParams({
-      port: String(resolvedPort),
-      mode,
-      room: room || 'default',
+      port:   String(resolvedPort),
+      mode:   'serve',
+      action: mode,
+      room:   room || 'default',
     });
     if (mode === 'join' && ticket.trim()) params.set('ticket', ticket.trim());
     window.location.href = `/room?${params}`;
@@ -34,7 +44,6 @@ export default function ConnectForm() {
         </button>
       </div>
 
-      {/* Join-only: ticket */}
       {mode === 'join' && (
         <div className="field">
           <label className="field-label">Ticket</label>
@@ -50,7 +59,6 @@ export default function ConnectForm() {
         </div>
       )}
 
-      {/* Port */}
       <div className="field">
         <label className="field-label">WebSocket Port</label>
         <input
@@ -64,7 +72,6 @@ export default function ConnectForm() {
         />
       </div>
 
-      {/* Room name — open only */}
       {mode === 'open' && (
         <div className="field">
           <label className="field-label">Room Name</label>
@@ -83,9 +90,7 @@ export default function ConnectForm() {
           {mode === 'open' ? 'Open Room' : 'Join Room'}
         </button>
         <p className="hint-text">
-          {mode === 'open'
-            ? 'Start the backend first — ticket prints to your terminal.'
-            : 'Run the backend with the ticket from peer A.'}
+          Requires <code>cargo run --bin chat -- serve --ws-port {port || defaultPort}</code>
         </p>
       </div>
 
@@ -118,6 +123,10 @@ export default function ConnectForm() {
         }
         .btn-primary:hover { background:#2d2d2d; }
         .hint-text { font-family:var(--font-mono); font-size:var(--text-sm); color:#888888; text-align:center; line-height:1.5; }
+        .hint-text code {
+          font-family:var(--font-mono); background:#f2f2f2;
+          border:1px solid #e0e0e0; border-radius:3px; padding:1px 5px;
+        }
       `}</style>
     </form>
   );

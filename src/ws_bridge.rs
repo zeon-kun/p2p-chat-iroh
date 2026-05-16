@@ -4,7 +4,7 @@ use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{broadcast, watch},
+    sync::{broadcast, mpsc, watch},
     task::JoinSet,
 };
 use tokio_tungstenite::{
@@ -18,15 +18,21 @@ use tracing::{info, warn};
 
 use crate::{
     chat::ChatHub,
-    protocol::ChatMessage,
+    protocol::{ChatMessage, NetworkEvent, RoomCommand, unix_millis},
 };
 
 /// Accepts WebSocket connections on `127.0.0.1:<port>`.
 /// Each client receives the history snapshot on connect, then live messages,
 /// and can send plain-text messages that are forwarded to the gossip topic.
+/// In serve mode, `cmd_tx` receives the first `RoomCommand` from any client.
 /// Stops accepting new connections when `shutdown_rx` fires and drains existing
 /// clients (up to 3 s grace) so they each receive a clean WS Close frame.
-pub async fn serve(port: u16, hub: ChatHub, mut shutdown_rx: watch::Receiver<bool>) -> Result<()> {
+pub async fn serve(
+    port: u16,
+    hub: ChatHub,
+    cmd_tx: Option<mpsc::Sender<RoomCommand>>,
+    mut shutdown_rx: watch::Receiver<bool>,
+) -> Result<()> {
     let addr: SocketAddr = format!("127.0.0.1:{port}").parse()?;
     let listener = TcpListener::bind(addr).await?;
     info!(target: "relay_test::ws", %addr, "WebSocket bridge listening");
@@ -40,8 +46,9 @@ pub async fn serve(port: u16, hub: ChatHub, mut shutdown_rx: watch::Receiver<boo
                 info!(target: "relay_test::ws", %peer_addr, "WebSocket client connected");
                 let hub = hub.clone();
                 let sd = shutdown_rx.clone();
+                let cmd_tx = cmd_tx.clone();
                 clients.spawn(async move {
-                    if let Err(e) = handle_client(stream, peer_addr, hub, sd).await {
+                    if let Err(e) = handle_client(stream, peer_addr, hub, cmd_tx, sd).await {
                         warn!(target: "relay_test::ws", %peer_addr, "client error: {e}");
                     }
                 });
@@ -69,6 +76,7 @@ async fn handle_client(
     stream: TcpStream,
     peer_addr: SocketAddr,
     hub: ChatHub,
+    cmd_tx: Option<mpsc::Sender<RoomCommand>>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> Result<()> {
     let ws = accept_async(stream).await?;
@@ -78,13 +86,25 @@ async fn handle_client(
     let mut live_rx  = hub.tx.subscribe();
     let mut event_rx = hub.event_tx.subscribe();
 
-    // Replay history.
-    for msg in hub.snapshot() {
+    // Replay in strict order: welcome → sorted history → HistoryComplete → live.
+    // Welcome first so the frontend has room context before processing messages.
+    // History is sorted by (ts, nonce) so cross-peer clock-skew is deterministic.
+    // HistoryComplete replaces the 80 ms timer heuristic on the frontend.
+    let welcome_ev = hub.welcome.lock().unwrap().clone();
+    if let Some(ev) = welcome_ev {
+        let text = serde_json::to_string(&ev)?;
+        ws_tx.send(Message::Text(text)).await?;
+    }
+
+    let mut history = hub.snapshot();
+    history.sort_by(|a, b| a.ts.cmp(&b.ts).then_with(|| a.nonce.cmp(&b.nonce)));
+    for msg in history {
         let text = serde_json::to_string(&msg)?;
         ws_tx.send(Message::Text(text)).await?;
     }
 
-    let outbound_tx = hub.outbound_tx.clone();
+    let sentinel = serde_json::to_string(&NetworkEvent::HistoryComplete { ts: unix_millis() })?;
+    ws_tx.send(Message::Text(sentinel)).await?;
 
     // Server-initiated keepalive ping every 30 s to detect dead/half-open connections.
     let mut ping_interval = tokio::time::interval(Duration::from_secs(30));
@@ -146,18 +166,26 @@ async fn handle_client(
                     Err(_) => break 'conn,
                 }
             }
-            // Inbound: WS client → outbound channel.
+            // Inbound: WS client → outbound channel (or room command in serve mode).
             incoming = ws_rx.next() => {
                 match incoming {
                     Some(Ok(Message::Text(text))) => {
-                        // Accept either a plain string body or a full JSON ChatMessage.
+                        // In serve mode, try to parse as a RoomCommand first.
+                        if let Some(ref tx) = cmd_tx {
+                            if let Ok(cmd) = serde_json::from_str::<RoomCommand>(&text) {
+                                let _ = tx.send(cmd).await;
+                                continue 'conn;
+                            }
+                        }
+                        // Fall back: accept plain string body or full JSON ChatMessage.
                         let body = if let Ok(cm) = serde_json::from_str::<ChatMessage>(&text) {
                             cm.body
                         } else {
                             text
                         };
-                        if outbound_tx.send(body).await.is_err() {
-                            break 'conn;
+                        // Look up the current sender on each message; None = no room active (drop silently).
+                        if let Some(tx) = hub.outbound_sender() {
+                            let _ = tx.send(body).await;
                         }
                     }
                     Some(Ok(Message::Ping(p))) => {

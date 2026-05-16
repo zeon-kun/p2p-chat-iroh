@@ -24,20 +24,22 @@ export default function PeerModal({ peerId, messages, networkEvents, onClose }: 
   const { bg, fg, border } = peerColor(peerId);
   const name = peerName(peerId);
 
-  // Peer-specific event data
-  const peerUp   = networkEvents.find(e => e.type === 'peer_up'   && e.peer === peerId);
-  const peerDown = networkEvents.find(e => e.type === 'peer_down' && e.peer === peerId);
+  // Peer-specific event data — use LAST peer_up/down to handle rejoin cycles.
+  const peerUp   = [...networkEvents].reverse().find(e => e.type === 'peer_up'   && e.peer === peerId);
+  const peerDown = [...networkEvents].reverse().find(e => e.type === 'peer_down' && e.peer === peerId);
   const msgCount = messages.filter(m => m.from === peerId).length;
 
-  // Last path info: path_selected events whose short `remote` is a prefix of this peer id.
+  // Last path info: path_selected events whose non-empty `remote` is a prefix of this peer id.
   const lastPath = [...networkEvents]
     .reverse()
-    .find(e => e.type === 'path_selected' && e.remote && peerId.startsWith(e.remote));
+    .find(e => e.type === 'path_selected' && e.remote && e.remote.length > 0 && peerId.startsWith(e.remote));
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(peerId).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
+    }).catch(() => {
+      // Clipboard unavailable (insecure context / denied) — silently no-op.
     });
   }, [peerId]);
 

@@ -1,6 +1,6 @@
 ---
 import '../styles/globals.css';
-import ConnectForm from '../components/ConnectForm';
+import Landing from '../components/Landing';
 ---
 <!doctype html>
 <html lang="en">
@@ -16,9 +16,12 @@ import ConnectForm from '../components/ConnectForm';
         <span class="logo-name">iroh</span>
         <span class="logo-product">chat</span>
       </div>
-      <div class="status-pill">
-        <span class="status-dot"></span>
-        <span class="status-label">idle</span>
+      <div class="header-right">
+        <a href="/simulation" class="sim-link">⊞ simulate</a>
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          <span class="status-label">idle</span>
+        </div>
       </div>
     </header>
 
@@ -27,7 +30,7 @@ import ConnectForm from '../components/ConnectForm';
         <p class="eyebrow">P2P relay chat</p>
         <h1 class="headline"><em>Enter a room.</em></h1>
       </div>
-      <ConnectForm client:load />
+      <Landing client:load />
     </main>
   </div>
 </body>
@@ -62,6 +65,23 @@ import ConnectForm from '../components/ConnectForm';
     font-size: 12px;
     color: var(--color-ink-subtle);
     letter-spacing: 1px;
+  }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .sim-link {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-ink-muted);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-ink-hairline);
+    transition: all var(--duration-fast) var(--ease-standard);
+    letter-spacing: 0.3px;
+  }
+  .sim-link:hover {
+    background: var(--color-ink-primary);
+    color: var(--color-ink-inverse);
+    border-color: var(--color-ink-primary);
   }
   .status-pill {
     display: flex;
