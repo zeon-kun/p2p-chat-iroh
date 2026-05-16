@@ -1,0 +1,94 @@
+---
+import '../styles/globals.css';
+import ConnectForm from '../components/ConnectForm';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iroh chat</title>
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <div class="logo">
+        <span class="logo-name">iroh</span>
+        <span class="logo-product">chat</span>
+      </div>
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span class="status-label">idle</span>
+      </div>
+    </header>
+
+    <main class="page-main">
+      <div class="hero">
+        <p class="eyebrow">P2P relay chat</p>
+        <h1 class="headline"><em>Enter a room.</em></h1>
+      </div>
+      <ConnectForm client:load />
+    </main>
+  </div>
+</body>
+</html>
+
+<style>
+  .page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+  .page-header {
+    height: var(--nav-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .logo { display: flex; align-items: center; gap: 8px; }
+  .logo-name {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-bold);
+    letter-spacing: -0.5px;
+    color: var(--color-ink-primary);
+  }
+  .logo-product {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-ink-subtle);
+    letter-spacing: 1px;
+  }
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: #f0f0f0;
+    border-radius: var(--radius-full);
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #bbbbbb; }
+  .status-label { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-ink-subtle); }
+  .page-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    padding: 48px 0 64px;
+  }
+  .hero { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.8px; color: var(--color-ink-muted); }
+  .headline {
+    font-family: var(--font-display);
+    font-size: 52px;
+    font-weight: 400;
+    letter-spacing: -1.5px;
+    line-height: 1.05;
+    color: var(--color-ink-primary);
+  }
+  .headline em { font-style: italic; }
+</style>
